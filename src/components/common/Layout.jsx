@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
-import { LayoutDashboard, ShoppingCart, Wallet, Boxes, PackageMinus, Truck, Users, UserCog, Bell, LogOut, Menu } from 'lucide-react'
+import { LayoutDashboard, ShoppingCart, Wallet, Boxes, PackageMinus, Truck, Users, UserCog, Bell, LogOut, Menu, KeyRound } from 'lucide-react'
 import clsx from 'clsx'
+import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
 import { useCajaStore } from '../../store/cajaStore'
 import { getResumen } from '../../services/alertasService'
+import { cambiarPassword } from '../../services/authService'
+import { Modal, Field, inputCls, btnPrimary, useAccion } from './ui'
 
 const NAV = [
   { to: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, admin: true },
@@ -39,11 +42,33 @@ function Campana() {
   )
 }
 
+function CambiarPassword({ onClose }) {
+  const [f, setF] = useState({ actual: '', nueva: '', repetir: '' })
+  const { busy, ejecutar } = useAccion()
+  const submit = (e) => {
+    e.preventDefault()
+    if (f.nueva !== f.repetir) return toast.error('Las contraseñas nuevas no coinciden')
+    ejecutar(async () => { await cambiarPassword(f.actual, f.nueva); onClose() }, 'Contraseña actualizada')
+  }
+  return (
+    <Modal title="Cambiar mi contraseña" onClose={onClose}>
+      <form className="space-y-3" onSubmit={submit}>
+        <Field label="Contraseña actual"><input required autoFocus type="password" className={inputCls} value={f.actual} onChange={(e) => setF({ ...f, actual: e.target.value })} autoComplete="current-password" /></Field>
+        <Field label="Nueva contraseña (mín. 6)"><input required type="password" minLength={6} maxLength={100} className={inputCls} value={f.nueva} onChange={(e) => setF({ ...f, nueva: e.target.value })} autoComplete="new-password" /></Field>
+        <Field label="Repetir nueva contraseña"><input required type="password" minLength={6} className={inputCls} value={f.repetir} onChange={(e) => setF({ ...f, repetir: e.target.value })} autoComplete="new-password" /></Field>
+        <div className="flex justify-end"><button className={btnPrimary} disabled={busy}>Guardar</button></div>
+      </form>
+    </Modal>
+  )
+}
+
 export default function Layout() {
-  const { user, logout } = useAuthStore()
+  const { user, logout, refrescarPerfil } = useAuthStore()
   const resetCaja = useCajaStore((s) => s.reset)
   const nav = useNavigate()
   const [abierto, setAbierto] = useState(false)
+  const [pwd, setPwd] = useState(false)
+  useEffect(() => { refrescarPerfil().catch(() => {}) }, []) // eslint-disable-line
   const admin = user.rol === 'Administrador'
   const items = NAV.filter((n) => !n.admin || admin)
   const salir = () => { resetCaja(); logout(); nav('/login') }
@@ -73,11 +98,13 @@ export default function Layout() {
               <p className="font-medium">{user.nombre}</p>
               <p className="text-xs text-gray-500">{user.rol}</p>
             </div>
+            <button onClick={() => setPwd(true)} title="Cambiar mi contraseña" className="rounded-lg p-2 text-gray-600 hover:bg-gray-100" aria-label="Cambiar contraseña"><KeyRound size={18} /></button>
             <button onClick={salir} className="rounded-lg p-2 text-gray-600 hover:bg-gray-100" aria-label="Cerrar sesión"><LogOut size={18} /></button>
           </div>
         </header>
         <main className="min-w-0 flex-1 p-4 md:p-6"><Outlet /></main>
       </div>
+      {pwd && <CambiarPassword onClose={() => setPwd(false)} />}
     </div>
   )
 }

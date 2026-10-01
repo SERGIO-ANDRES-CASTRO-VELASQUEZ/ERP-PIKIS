@@ -8,5 +8,7 @@ export const desactivarProducto = (id) => api.delete(`/api/productos/${id}`)
 export const registrarEntrada = (id, b) => api.post(`/api/productos/${id}/entradas`, b).then(d)
 export const registrarAjuste = (id, b) => api.post(`/api/productos/${id}/ajustes`, b).then(d)
 export const getMovimientos = (id) => api.get(`/api/productos/${id}/movimientos`).then(d)
+// Kardex global: tipo 'Entrada' | 'Venta' | 'Ajuste' (opcional), desde/hasta yyyy-MM-dd
+export const getMovimientosGlobales = (params) => api.get('/api/productos/movimientos', { params }).then(d)
 export const getCategorias = () => api.get('/api/categorias').then(d)
 export const crearCategoria = (nombre) => api.post('/api/categorias', { nombre }).then(d)

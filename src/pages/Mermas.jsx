@@ -1,28 +1,27 @@
 import { useMemo, useState } from 'react'
 import { PackageMinus } from 'lucide-react'
-import { getProductos, getMovimientos } from '../services/inventarioService'
-import { money, fechaHora } from '../utils/formatters'
+import { getProductos, getMovimientosGlobales } from '../services/inventarioService'
+import { money, fechaHora, dia } from '../utils/formatters'
 import AjusteModal, { TIPOS_MERMA, parseMotivo } from '../components/inventario/AjusteModal'
 import { inputCls, btnPrimary, Badge, Table, Kpi, Spinner, ErrorBox, PageHeader, useFetch } from '../components/common/ui'
 
-// El backend no tiene un listado global de ajustes: se arma con el kardex (movimientos tipo "Ajuste") de cada producto.
-async function cargarAjustes() {
-  const productos = await getProductos()
-  const filas = []
-  for (let i = 0; i < productos.length; i += 10) {
-    const lote = productos.slice(i, i + 10)
-    const res = await Promise.all(lote.map((p) => getMovimientos(p.id).then((ms) => ms.filter((m) => m.tipo === 'Ajuste').map((m) => ({ ...m, producto: p.nombre, costo: p.precioCompra }))).catch(() => [])))
-    res.forEach((r) => filas.push(...r))
-  }
-  return { productos, ajustes: filas.sort((a, b) => b.fecha.localeCompare(a.fecha)) }
+// mes = 'yyyy-MM' → primer y último día del mes (hora local, como espera el backend)
+async function cargarAjustes(mes) {
+  const [y, m] = mes.split('-').map(Number)
+  const [productos, ajustes] = await Promise.all([
+    getProductos(),
+    getMovimientosGlobales({ tipo: 'Ajuste', desde: dia(new Date(y, m - 1, 1)), hasta: dia(new Date(y, m, 0)) }),
+  ])
+  const costoActual = Object.fromEntries(productos.map((p) => [p.id, p.precioCompra]))
+  return { productos, ajustes: ajustes.map((a) => ({ ...a, costo: a.costoUnitario ?? costoActual[a.productoId] ?? 0 })) }
 }
 
 export default function Mermas() {
-  const { data, loading, error, reload } = useFetch(cargarAjustes, [])
-  const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7))
+  const [mes, setMes] = useState(() => dia().slice(0, 7))
+  const { data, loading, error, reload } = useFetch(() => cargarAjustes(mes), [mes])
   const [abierto, setAbierto] = useState(false)
 
-  const delMes = useMemo(() => (data?.ajustes ?? []).filter((a) => a.fecha.startsWith(mes)).map((a) => ({ ...a, ...parseMotivo(a.motivo) })), [data, mes])
+  const delMes = useMemo(() => (data?.ajustes ?? []).map((a) => ({ ...a, ...parseMotivo(a.motivo ?? '') })), [data])
   const perdidas = delMes.filter((a) => a.cantidad < 0)
   const costoTotal = perdidas.reduce((s, a) => s + Math.abs(a.cantidad) * a.costo, 0)
   const porTipo = Object.entries(TIPOS_MERMA).map(([k, t]) => {
@@ -34,13 +33,13 @@ export default function Mermas() {
   return (
     <div>
       <PageHeader title="Mermas y ajustes" subtitle="Averías, vencimientos y ajustes con motivo y responsable (pérdidas hormiga).">
-        <input type="month" className={inputCls + ' !w-auto'} value={mes} onChange={(e) => setMes(e.target.value)} />
+        <input type="month" className={inputCls + ' !w-auto'} max={dia().slice(0, 7)} value={mes} onChange={(e) => e.target.value && setMes(e.target.value)} />
         <button className={btnPrimary} disabled={!data} onClick={() => setAbierto(true)}><PackageMinus size={16} /> Registrar</button>
       </PageHeader>
-      {error ? <ErrorBox msg={error} onRetry={reload} /> : loading ? <Spinner /> : (
+      {error ? <ErrorBox msg={error} onRetry={reload} /> : loading && !data ? <Spinner /> : (
         <>
           <div className="mb-5 grid gap-4 lg:grid-cols-3">
-            <Kpi label="Pérdida del mes (a costo actual)" value={money(costoTotal)} tone="text-pikis-red" sub={`${perdidas.length} registros`} />
+            <Kpi label="Pérdida del mes (a costo)" value={money(costoTotal)} tone="text-pikis-red" sub={`${perdidas.length} registros`} />
             <div className="rounded-xl border bg-white p-4 lg:col-span-2">
               <p className="mb-2 text-xs text-gray-500">Pérdida por tipo</p>
               {porTipo.length === 0 && <p className="text-sm text-gray-400">Sin registros este mes.</p>}

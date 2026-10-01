@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { UserPlus, FileText } from 'lucide-react'
+import { UserPlus, FileText, Pencil } from 'lucide-react'
 import * as us from '../services/usuariosService'
 import { getTurnos, getTurno } from '../services/cajaService'
 import { getVentas, abrirTicketPdf } from '../services/ventasService'
@@ -25,9 +25,34 @@ function UsuarioForm({ onClose, onDone }) {
   )
 }
 
+function EditarUsuario({ usuario, onClose, onDone }) {
+  const [f, setF] = useState({ nombre: usuario.nombre, rol: usuario.rol, password: '' })
+  const { busy, ejecutar } = useAccion()
+  const guardar = (e) => { e.preventDefault(); ejecutar(async () => { await us.actualizarUsuario(usuario.id, { nombre: f.nombre.trim(), rol: f.rol }); onDone(); onClose() }, 'Usuario actualizado') }
+  const restablecer = () => ejecutar(async () => { await us.restablecerPassword(usuario.id, f.password); setF({ ...f, password: '' }) }, `Contraseña de ${usuario.username} restablecida`)
+  return (
+    <Modal title={`Editar usuario — ${usuario.username}`} onClose={onClose}>
+      <form className="space-y-3" onSubmit={guardar}>
+        <Field label="Nombre completo"><input required maxLength={120} className={inputCls} value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} /></Field>
+        <Field label="Rol"><select className={inputCls} value={f.rol} onChange={(e) => setF({ ...f, rol: e.target.value })}><option value="Cajero">Cajero</option><option value="Administrador">Administrador</option></select></Field>
+        <div className="flex justify-end"><button className={btnPrimary} disabled={busy}>Guardar cambios</button></div>
+      </form>
+      <div className="mt-5 space-y-2 border-t pt-4">
+        <p className="text-sm font-medium">Restablecer contraseña</p>
+        <p className="text-xs text-gray-500">Úsalo si el empleado la olvidó. Entrégale la nueva contraseña para que la cambie al ingresar.</p>
+        <div className="flex gap-2">
+          <input type="password" minLength={6} maxLength={100} placeholder="Nueva contraseña (mín. 6)" className={inputCls} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} autoComplete="new-password" />
+          <button type="button" className={btnGhost} disabled={busy || f.password.length < 6} onClick={restablecer}>Restablecer</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function TabUsuarios() {
   const { data, loading, error, reload } = useFetch(us.getUsuarios, [])
   const [nuevo, setNuevo] = useState(false)
+  const [editar, setEditar] = useState(null)
   const toggle = (u) => (u.activo ? us.desactivarUsuario(u.id) : us.activarUsuario(u.id)).then(reload).catch((e) => toast.error(errMsg(e)))
   return (
     <>
@@ -39,12 +64,16 @@ function TabUsuarios() {
               <td className="px-4 py-2.5 font-medium">{u.nombre}</td><td className="px-4 py-2.5">{u.username}</td>
               <td className="px-4 py-2.5"><Badge tone={u.rol === 'Administrador' ? 'blue' : 'gray'}>{u.rol}</Badge></td>
               <td className="px-4 py-2.5"><Badge tone={u.activo ? 'green' : 'red'}>{u.activo ? 'Activo' : 'Inactivo'}</Badge></td>
-              <td className="px-4 py-2.5 text-right"><button className={btnGhost} onClick={() => toggle(u)}>{u.activo ? 'Desactivar' : 'Activar'}</button></td>
+              <td className="space-x-2 whitespace-nowrap px-4 py-2.5 text-right">
+                <button className={btnGhost} onClick={() => setEditar(u)}><Pencil size={14} /> Editar</button>
+                <button className={btnGhost} onClick={() => toggle(u)}>{u.activo ? 'Desactivar' : 'Activar'}</button>
+              </td>
             </tr>
           ))}
         </Table>
       )}
       {nuevo && <UsuarioForm onClose={() => setNuevo(false)} onDone={reload} />}
+      {editar && <EditarUsuario usuario={editar} onClose={() => setEditar(null)} onDone={reload} />}
     </>
   )
 }

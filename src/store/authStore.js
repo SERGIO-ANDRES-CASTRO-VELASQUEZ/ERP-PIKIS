@@ -13,6 +13,12 @@ export const useAuthStore = create((set, get) => ({
     set({ token: r.token, user: r.usuario })
     return r.usuario
   },
+  refrescarPerfil: async () => {
+    const u = await auth.perfil()
+    localStorage.setItem('usuario', JSON.stringify(u))
+    set({ user: u })
+    return u
+  },
   logout: () => {
     localStorage.removeItem('token'); localStorage.removeItem('usuario')
     set({ token: null, user: null })
