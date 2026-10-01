@@ -1,0 +1,54 @@
+@base = http://localhost:5105
+@token = pegue-aqui-el-token
+
+### Login
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{ "username": "admin", "password": "Pikis2026*" }
+
+### Abrir caja
+POST {{base}}/api/caja/apertura
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "montoInicial": 50000 }
+
+### Crear producto
+POST {{base}}/api/productos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "codigoBarras": "7702004003591",
+  "nombre": "Arroz Diana 500 g",
+  "categoriaId": 1,
+  "precioCompra": 2300,
+  "precioVenta": 2800,
+  "stockInicial": 40,
+  "stockMinimo": 10
+}
+
+### Registrar venta de contado
+POST {{base}}/api/ventas
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "tipoPago": "Efectivo",
+  "montoRecibido": 10000,
+  "imprimir": true,
+  "items": [ { "productoId": 1, "cantidad": 2 } ]
+}
+
+### Tiquete PDF (rollo 80 mm)
+GET {{base}}/api/ventas/1/ticket/pdf?ancho=80
+Authorization: Bearer {{token}}
+
+### Reimprimir en la térmica
+POST {{base}}/api/ventas/1/imprimir
+Authorization: Bearer {{token}}
+
+### Dashboard
+GET {{base}}/api/dashboard
+Authorization: Bearer {{token}}
